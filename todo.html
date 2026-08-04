@@ -138,16 +138,37 @@
     color: #4a4a4a;
     text-decoration: line-through;
   }
-  .item-del {
+  .item-actions {
     flex: 0 0 auto;
-    opacity: 0;
-    color: #444;
-    font-size: 13px;
-    padding: 2px 6px;
-    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
-  .item-row:hover .item-del { opacity: 1; }
-  .item-del:hover { color: #999; }
+  .item-addsub, .item-del {
+    flex: 0 0 auto;
+    color: #666;
+    cursor: pointer;
+    border-radius: 8px;
+    line-height: 1;
+    text-align: center;
+  }
+  .item-addsub:hover, .item-del:hover { color: #ccc; background: #1c1c1c; }
+  .item-addsub {
+    font-size: 20px;
+    padding: 6px 10px;
+  }
+  .item-del {
+    font-size: 22px;
+    padding: 6px 12px;
+    color: #888;
+  }
+  .item-del:hover { color: #ddd; }
+
+  .subtasks {
+    margin-left: 27px;
+    padding-left: 8px;
+  }
+  .sub-item-row .item-text { color: #bbb; }
 
   .add-item-row {
     display: flex;
@@ -222,6 +243,7 @@
 
   var openCategoryIds = {};
   var editingCategoryId = null;
+  var openSubtaskAdders = {};
 
   var categoriesEl = document.getElementById("categories");
   var newCatInput = document.getElementById("newCatInput");
@@ -324,7 +346,7 @@
     dropdown.className = "dropdown" + (openCategoryIds[cat.id] ? " open" : "");
 
     cat.items.forEach(function(item) {
-      dropdown.appendChild(renderItem(cat, item));
+      dropdown.appendChild(renderItem(cat.items, item));
     });
 
     var addRow = document.createElement("div");
@@ -378,21 +400,37 @@
     }, 0);
   }
 
-  function renderItem(cat, item) {
+  function renderItem(list, item) {
+    item.subtasks = item.subtasks || [];
+
+    var wrap = document.createElement("div");
+
     var row = document.createElement("div");
     row.className = "item-row";
 
     var box = document.createElement("div");
     box.className = "checkbox" + (item.done ? " checked" : "");
     box.addEventListener("click", function() {
-      toggleItem(cat, item);
+      toggleItem(list, item);
     });
 
     var text = document.createElement("div");
     text.className = "item-text" + (item.done ? " done" : "");
     text.textContent = item.text;
     text.addEventListener("click", function() {
-      toggleItem(cat, item);
+      toggleItem(list, item);
+    });
+
+    var actions = document.createElement("div");
+    actions.className = "item-actions";
+
+    var addSub = document.createElement("div");
+    addSub.className = "item-addsub";
+    addSub.textContent = "+";
+    addSub.addEventListener("click", function(e) {
+      e.stopPropagation();
+      openSubtaskAdders[item.id] = !openSubtaskAdders[item.id];
+      render();
     });
 
     var del = document.createElement("div");
@@ -400,7 +438,96 @@
     del.textContent = "×";
     del.addEventListener("click", function(e) {
       e.stopPropagation();
-      cat.items = cat.items.filter(function(i) { return i.id !== item.id; });
+      var idx = list.indexOf(item);
+      list.splice(idx, 1);
+      save();
+      render();
+    });
+
+    actions.appendChild(addSub);
+    actions.appendChild(del);
+
+    row.appendChild(box);
+    row.appendChild(text);
+    row.appendChild(actions);
+    wrap.appendChild(row);
+
+    if (item.subtasks.length || openSubtaskAdders[item.id]) {
+      var subWrap = document.createElement("div");
+      subWrap.className = "subtasks";
+      subWrap.setAttribute("data-subtask-owner", item.id);
+
+      item.subtasks.forEach(function(sub) {
+        subWrap.appendChild(renderSubtask(item.subtasks, sub));
+      });
+
+      if (openSubtaskAdders[item.id]) {
+        var addRow = document.createElement("div");
+        addRow.className = "add-item-row";
+        var placeholder = document.createElement("div");
+        placeholder.className = "checkbox-placeholder";
+        var input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "+ add subtask";
+        input.maxLength = 200;
+        input.setAttribute("enterkeyhint", "done");
+        input.addEventListener("keydown", function(e) {
+          if (e.isComposing) return;
+          if (e.key === "Enter" || e.keyCode === 13) {
+            e.preventDefault();
+            var val = input.value.trim();
+            if (val) {
+              item.subtasks.push({ id: uid(), text: val, done: false });
+              save();
+              render();
+              focusSubtaskInput(item.id);
+            }
+          }
+        });
+        addRow.appendChild(placeholder);
+        addRow.appendChild(input);
+        subWrap.appendChild(addRow);
+
+        setTimeout(function() { input.focus(); }, 0);
+      }
+
+      wrap.appendChild(subWrap);
+    }
+
+    return wrap;
+  }
+
+  function focusSubtaskInput(itemId) {
+    setTimeout(function() {
+      var input = categoriesEl.querySelector('[data-subtask-owner="' + itemId + '"] .add-item-row input');
+      if (input) input.focus();
+    }, 0);
+  }
+
+  function renderSubtask(list, item) {
+    var row = document.createElement("div");
+    row.className = "item-row sub-item-row";
+
+    var box = document.createElement("div");
+    box.className = "checkbox" + (item.done ? " checked" : "");
+    box.addEventListener("click", function() {
+      toggleItem(list, item);
+    });
+
+    var text = document.createElement("div");
+    text.className = "item-text" + (item.done ? " done" : "");
+    text.textContent = item.text;
+    text.addEventListener("click", function() {
+      toggleItem(list, item);
+    });
+
+    var del = document.createElement("div");
+    del.className = "item-del";
+    del.textContent = "×";
+    del.addEventListener("click", function(e) {
+      e.stopPropagation();
+      var idx = list.indexOf(item);
+      list.splice(idx, 1);
       save();
       render();
     });
@@ -411,26 +538,15 @@
     return row;
   }
 
-  function toggleItem(cat, item) {
-    var idx = cat.items.indexOf(item);
-    cat.items.splice(idx, 1);
-
-    if (!item.done) {
-      item.done = true;
-      var firstDoneIdx = cat.items.findIndex(function(i) { return i.done; });
-      if (firstDoneIdx === -1) {
-        cat.items.push(item);
-      } else {
-        cat.items.splice(firstDoneIdx, 0, item);
-      }
+  function toggleItem(list, item) {
+    var idx = list.indexOf(item);
+    list.splice(idx, 1);
+    item.done = !item.done;
+    var firstDoneIdx = list.findIndex(function(i) { return i.done; });
+    if (firstDoneIdx === -1) {
+      list.push(item);
     } else {
-      item.done = false;
-      var firstDoneIdx = cat.items.findIndex(function(i) { return i.done; });
-      if (firstDoneIdx === -1) {
-        cat.items.push(item);
-      } else {
-        cat.items.splice(firstDoneIdx, 0, item);
-      }
+      list.splice(firstDoneIdx, 0, item);
     }
     save();
     render();
