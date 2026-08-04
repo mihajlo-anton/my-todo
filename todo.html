@@ -398,10 +398,7 @@
     del.textContent = "×";
     del.addEventListener("click", function(e) {
       e.stopPropagation();
-      var idx = list.indexOf(item);
-      list.splice(idx, 1);
-      save();
-      render();
+      removeFromList(list, item);
     });
 
     actions.appendChild(addSub);
@@ -443,16 +440,21 @@
     del.textContent = "×";
     del.addEventListener("click", function(e) {
       e.stopPropagation();
-      var idx = list.indexOf(item);
-      list.splice(idx, 1);
-      save();
-      render();
+      removeFromList(list, item);
     });
 
     row.appendChild(box);
     row.appendChild(text);
     row.appendChild(del);
     return row;
+  }
+
+  function removeFromList(list, item) {
+    var idx = list.indexOf(item);
+    if (idx === -1) return;
+    list.splice(idx, 1);
+    save();
+    render();
   }
 
   function createItemTextInput(item, list) {
@@ -484,11 +486,19 @@
         focusItemText(newItem.id);
       }
     });
+    text.addEventListener("blur", function() {
+      var isEmpty = text.value.trim() === "";
+      var hasSubtasks = item.subtasks && item.subtasks.length > 0;
+      if (isEmpty && !hasSubtasks) {
+        removeFromList(list, item);
+      }
+    });
     return text;
   }
 
   function toggleItem(list, item) {
     var idx = list.indexOf(item);
+    if (idx === -1) return;
     list.splice(idx, 1);
     item.done = !item.done;
     var firstDoneIdx = list.findIndex(function(i) { return i.done; });
@@ -523,6 +533,12 @@
   render();
 
   if ("serviceWorker" in navigator) {
+    var reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function() {
+      if (reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      window.location.reload();
+    });
     window.addEventListener("load", function() {
       navigator.serviceWorker.register("service-worker.js").then(function(reg) {
         reg.update();
