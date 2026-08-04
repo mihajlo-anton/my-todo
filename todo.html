@@ -130,9 +130,14 @@
     flex: 1 1 auto;
     font-size: 15px;
     color: #ddd;
-    cursor: default;
     word-break: break-word;
     text-align: left;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    padding: 4px 2px;
+    min-width: 0;
   }
   .item-text.done {
     color: #4a4a4a;
@@ -299,10 +304,10 @@
     right.style.alignItems = "center";
     right.style.gap = "10px";
 
-    var remaining = cat.items.filter(function(i) { return !i.done; }).length;
+    var completed = cat.items.filter(function(i) { return i.done; }).length;
     var meta = document.createElement("div");
     meta.className = "cat-meta";
-    meta.textContent = cat.items.length ? remaining : "";
+    meta.textContent = cat.items.length ? (completed + "/" + cat.items.length) : "";
 
     var edit = document.createElement("div");
     edit.className = "cat-edit";
@@ -414,12 +419,7 @@
       toggleItem(list, item);
     });
 
-    var text = document.createElement("div");
-    text.className = "item-text" + (item.done ? " done" : "");
-    text.textContent = item.text;
-    text.addEventListener("click", function() {
-      toggleItem(list, item);
-    });
+    var text = createItemTextInput(item);
 
     var actions = document.createElement("div");
     actions.className = "item-actions";
@@ -514,12 +514,7 @@
       toggleItem(list, item);
     });
 
-    var text = document.createElement("div");
-    text.className = "item-text" + (item.done ? " done" : "");
-    text.textContent = item.text;
-    text.addEventListener("click", function() {
-      toggleItem(list, item);
-    });
+    var text = createItemTextInput(item);
 
     var del = document.createElement("div");
     del.className = "item-del";
@@ -536,6 +531,28 @@
     row.appendChild(text);
     row.appendChild(del);
     return row;
+  }
+
+  function createItemTextInput(item) {
+    var text = document.createElement("input");
+    text.type = "text";
+    text.className = "item-text" + (item.done ? " done" : "");
+    text.value = item.text;
+    text.maxLength = 200;
+    text.setAttribute("enterkeyhint", "done");
+    text.addEventListener("input", function() {
+      item.text = text.value;
+      save();
+    });
+    text.addEventListener("keydown", function(e) {
+      e.stopPropagation();
+      if (e.isComposing) return;
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        text.blur();
+      }
+    });
+    return text;
   }
 
   function toggleItem(list, item) {
@@ -572,7 +589,9 @@
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function() {
-      navigator.serviceWorker.register("service-worker.js").catch(function() {});
+      navigator.serviceWorker.register("service-worker.js").then(function(reg) {
+        reg.update();
+      }).catch(function() {});
     });
   }
 })();
