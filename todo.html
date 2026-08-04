@@ -255,7 +255,7 @@
     </div>
   </div>
 
-  <div id="version">v12</div>
+  <div id="version">v13</div>
 </div>
 
 <script>
@@ -562,10 +562,18 @@
       if (e.key === "Enter" || e.keyCode === 13) {
         e.preventDefault();
         var pos = text.selectionStart == null ? text.value.length : text.selectionStart;
+        var idx = list.indexOf(item);
+        if (pos === 0 && text.value.length > 0) {
+          var blankItem = { id: uid(), text: "", done: false, subtasks: [] };
+          list.splice(idx, 0, blankItem);
+          save();
+          render();
+          focusItemText(item.id);
+          return;
+        }
         var before = text.value.slice(0, pos);
         var after = text.value.slice(pos);
         item.text = before;
-        var idx = list.indexOf(item);
         var newItem = { id: uid(), text: after, done: false, subtasks: [] };
         list.splice(idx + 1, 0, newItem);
         save();
