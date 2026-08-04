@@ -175,25 +175,6 @@
   }
   .sub-item-row .item-text { color: #bbb; }
 
-  .add-item-row {
-    display: flex;
-    align-items: center;
-    padding: 5px 2px 2px;
-    gap: 10px;
-  }
-  .add-item-row .checkbox-placeholder { width: 17px; flex: 0 0 auto; }
-  .add-item-row input {
-    flex: 1 1 auto;
-    background: transparent;
-    border: none;
-    outline: none;
-    color: #ddd;
-    font-size: 15px;
-    font-family: inherit;
-    text-align: left;
-  }
-  .add-item-row input::placeholder { color: #444; }
-
   /* add category */
   .add-cat {
     margin-top: 14px;
@@ -248,7 +229,6 @@
 
   var openCategoryIds = {};
   var editingCategoryId = null;
-  var openSubtaskAdders = {};
 
   var categoriesEl = document.getElementById("categories");
   var newCatInput = document.getElementById("newCatInput");
@@ -341,7 +321,16 @@
 
     header.addEventListener("click", function() {
       if (editingCategoryId === cat.id) return;
-      openCategoryIds[cat.id] = !openCategoryIds[cat.id];
+      var willOpen = !openCategoryIds[cat.id];
+      openCategoryIds[cat.id] = willOpen;
+      if (willOpen && cat.items.length === 0) {
+        var newItem = { id: uid(), text: "", done: false, subtasks: [] };
+        cat.items.push(newItem);
+        save();
+        render();
+        focusItemText(newItem.id);
+        return;
+      }
       render();
     });
 
@@ -354,37 +343,7 @@
       dropdown.appendChild(renderItem(cat.items, item));
     });
 
-    var addRow = document.createElement("div");
-    addRow.className = "add-item-row";
-    var placeholder = document.createElement("div");
-    placeholder.className = "checkbox-placeholder";
-    var input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = "+ add item";
-    input.maxLength = 200;
-    input.setAttribute("enterkeyhint", "done");
-    input.addEventListener("keydown", function(e) {
-      if (e.isComposing) return;
-      if (e.key === "Enter" || e.keyCode === 13) {
-        e.preventDefault();
-        var val = input.value.trim();
-        if (val) {
-          cat.items.push({ id: uid(), text: val, done: false });
-          save();
-          render();
-          focusAddInput(cat.id);
-        }
-      }
-    });
-    addRow.appendChild(placeholder);
-    addRow.appendChild(input);
-    dropdown.appendChild(addRow);
-
     wrap.appendChild(dropdown);
-
-    if (openCategoryIds[cat.id]) {
-      setTimeout(function() { input.focus(); }, 0);
-    }
 
     if (isEditing) {
       setTimeout(function() { name.focus(); name.select(); }, 0);
@@ -393,15 +352,13 @@
     return wrap;
   }
 
-  function focusAddInput(catId) {
+  function focusItemText(itemId) {
     setTimeout(function() {
-      var cats = categoriesEl.querySelectorAll(".category");
-      state.categories.forEach(function(c, idx) {
-        if (c.id === catId) {
-          var inp = cats[idx].querySelector(".add-item-row input");
-          if (inp) inp.focus();
-        }
-      });
+      var el = categoriesEl.querySelector('[data-item-id="' + itemId + '"]');
+      if (el) {
+        el.focus();
+        try { el.setSelectionRange(0, 0); } catch (err) {}
+      }
     }, 0);
   }
 
@@ -419,7 +376,7 @@
       toggleItem(list, item);
     });
 
-    var text = createItemTextInput(item);
+    var text = createItemTextInput(item, list);
 
     var actions = document.createElement("div");
     actions.className = "item-actions";
@@ -429,8 +386,11 @@
     addSub.textContent = "+";
     addSub.addEventListener("click", function(e) {
       e.stopPropagation();
-      openSubtaskAdders[item.id] = !openSubtaskAdders[item.id];
+      var newSub = { id: uid(), text: "", done: false };
+      item.subtasks.push(newSub);
+      save();
       render();
+      focusItemText(newSub.id);
     });
 
     var del = document.createElement("div");
@@ -452,56 +412,18 @@
     row.appendChild(actions);
     wrap.appendChild(row);
 
-    if (item.subtasks.length || openSubtaskAdders[item.id]) {
+    if (item.subtasks.length) {
       var subWrap = document.createElement("div");
       subWrap.className = "subtasks";
-      subWrap.setAttribute("data-subtask-owner", item.id);
 
       item.subtasks.forEach(function(sub) {
         subWrap.appendChild(renderSubtask(item.subtasks, sub));
       });
 
-      if (openSubtaskAdders[item.id]) {
-        var addRow = document.createElement("div");
-        addRow.className = "add-item-row";
-        var placeholder = document.createElement("div");
-        placeholder.className = "checkbox-placeholder";
-        var input = document.createElement("input");
-        input.type = "text";
-        input.placeholder = "+ add subtask";
-        input.maxLength = 200;
-        input.setAttribute("enterkeyhint", "done");
-        input.addEventListener("keydown", function(e) {
-          if (e.isComposing) return;
-          if (e.key === "Enter" || e.keyCode === 13) {
-            e.preventDefault();
-            var val = input.value.trim();
-            if (val) {
-              item.subtasks.push({ id: uid(), text: val, done: false });
-              save();
-              render();
-              focusSubtaskInput(item.id);
-            }
-          }
-        });
-        addRow.appendChild(placeholder);
-        addRow.appendChild(input);
-        subWrap.appendChild(addRow);
-
-        setTimeout(function() { input.focus(); }, 0);
-      }
-
       wrap.appendChild(subWrap);
     }
 
     return wrap;
-  }
-
-  function focusSubtaskInput(itemId) {
-    setTimeout(function() {
-      var input = categoriesEl.querySelector('[data-subtask-owner="' + itemId + '"] .add-item-row input');
-      if (input) input.focus();
-    }, 0);
   }
 
   function renderSubtask(list, item) {
@@ -514,7 +436,7 @@
       toggleItem(list, item);
     });
 
-    var text = createItemTextInput(item);
+    var text = createItemTextInput(item, list);
 
     var del = document.createElement("div");
     del.className = "item-del";
@@ -533,13 +455,14 @@
     return row;
   }
 
-  function createItemTextInput(item) {
+  function createItemTextInput(item, list) {
     var text = document.createElement("input");
     text.type = "text";
     text.className = "item-text" + (item.done ? " done" : "");
     text.value = item.text;
     text.maxLength = 200;
     text.setAttribute("enterkeyhint", "done");
+    text.setAttribute("data-item-id", item.id);
     text.addEventListener("input", function() {
       item.text = text.value;
       save();
@@ -549,7 +472,16 @@
       if (e.isComposing) return;
       if (e.key === "Enter" || e.keyCode === 13) {
         e.preventDefault();
-        text.blur();
+        var pos = text.selectionStart == null ? text.value.length : text.selectionStart;
+        var before = text.value.slice(0, pos);
+        var after = text.value.slice(pos);
+        item.text = before;
+        var idx = list.indexOf(item);
+        var newItem = { id: uid(), text: after, done: false, subtasks: [] };
+        list.splice(idx + 1, 0, newItem);
+        save();
+        render();
+        focusItemText(newItem.id);
       }
     });
     return text;
@@ -576,11 +508,14 @@
       var val = newCatInput.value.trim();
       if (val) {
         var cat = { id: uid(), name: val, items: [] };
+        var newItem = { id: uid(), text: "", done: false, subtasks: [] };
+        cat.items.push(newItem);
         state.categories.push(cat);
         newCatInput.value = "";
         save();
         openCategoryIds[cat.id] = true;
         render();
+        focusItemText(newItem.id);
       }
     }
   });
