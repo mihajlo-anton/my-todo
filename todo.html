@@ -255,7 +255,7 @@
     </div>
   </div>
 
-  <div id="version">v11</div>
+  <div id="version">v12</div>
 </div>
 
 <script>
@@ -438,12 +438,13 @@
     return wrap;
   }
 
-  function focusItemText(itemId) {
+  function focusItemText(itemId, atEnd) {
     setTimeout(function() {
       var el = categoriesEl.querySelector('[data-item-id="' + itemId + '"]');
       if (el) {
         el.focus();
-        try { el.setSelectionRange(0, 0); } catch (err) {}
+        var pos = atEnd ? el.value.length : 0;
+        try { el.setSelectionRange(pos, pos); } catch (err) {}
       }
     }, 0);
   }
@@ -570,6 +571,18 @@
         save();
         render();
         focusItemText(newItem.id);
+        return;
+      }
+      if ((e.key === "Backspace" || e.keyCode === 8) && text.value === "") {
+        var delIdx = list.indexOf(item);
+        if (delIdx > 0) {
+          e.preventDefault();
+          var prevItem = list[delIdx - 1];
+          list.splice(delIdx, 1);
+          save();
+          render();
+          focusItemText(prevItem.id, true);
+        }
       }
     });
     text.addEventListener("blur", function() {
