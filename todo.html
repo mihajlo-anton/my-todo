@@ -30,6 +30,62 @@
     min-height: 100vh;
   }
 
+  #tabsBar {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding: 2px 2px 16px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  #tabsBar::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 16px;
+    background: #101010;
+    color: #666;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 160px;
+  }
+  .tab.active {
+    background: #1e1e1e;
+    color: #f2f2f2;
+  }
+  .tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tab-add {
+    color: #444;
+    font-weight: 600;
+    font-size: 17px;
+    padding: 7px 16px;
+  }
+  .tab-add:hover { color: #999; }
+  .tab-edit-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f2f2f2;
+    font-size: 14px;
+    font-family: inherit;
+    width: 90px;
+  }
+  .tab-del {
+    color: #777;
+    font-size: 15px;
+    padding: 0 2px;
+  }
+  .tab-del:hover { color: #ccc; }
+
   /* category row */
   .category {
     position: relative;
@@ -237,6 +293,7 @@
 </head>
 <body>
 <div id="app">
+  <div id="tabsBar"></div>
   <div id="categories"></div>
   <div class="add-cat">
     <input id="newCatInput" type="text" placeholder="+ add category" maxlength="60" enterkeyhint="done">
@@ -255,7 +312,7 @@
     </div>
   </div>
 
-  <div id="version">v13</div>
+  <div id="version">v14</div>
 </div>
 
 <script>
@@ -268,9 +325,22 @@
   function load() {
     try {
       var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.lists && parsed.lists.length) {
+          if (!parsed.lists.some(function(l) { return l.id === parsed.currentListId; })) {
+            parsed.currentListId = parsed.lists[0].id;
+          }
+          return parsed;
+        }
+        if (parsed && parsed.categories) {
+          var migratedId = uid();
+          return { lists: [{ id: migratedId, name: "List 1", categories: parsed.categories }], currentListId: migratedId };
+        }
+      }
     } catch (e) {}
-    return { categories: [] };
+    var freshId = uid();
+    return { lists: [{ id: freshId, name: "List 1", categories: [] }], currentListId: freshId };
   }
 
   function save() {
@@ -283,17 +353,129 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
+  function getCurrentList() {
+    var found = null;
+    state.lists.forEach(function(l) { if (l.id === state.currentListId) found = l; });
+    return found || state.lists[0];
+  }
+
   var openCategoryIds = {};
   var editingCategoryId = null;
+  var editingListId = null;
 
   var categoriesEl = document.getElementById("categories");
   var newCatInput = document.getElementById("newCatInput");
+  var tabsBarEl = document.getElementById("tabsBar");
 
   function render() {
     categoriesEl.innerHTML = "";
-    state.categories.forEach(function(cat) {
+    getCurrentList().categories.forEach(function(cat) {
       categoriesEl.appendChild(renderCategory(cat));
     });
+  }
+
+  function renderTabs() {
+    tabsBarEl.innerHTML = "";
+    state.lists.forEach(function(list) {
+      tabsBarEl.appendChild(renderTab(list));
+    });
+
+    var addTab = document.createElement("div");
+    addTab.className = "tab tab-add";
+    addTab.textContent = "+";
+    addTab.addEventListener("click", function() {
+      var newList = { id: uid(), name: "List " + (state.lists.length + 1), categories: [] };
+      state.lists.push(newList);
+      state.currentListId = newList.id;
+      editingListId = newList.id;
+      openCategoryIds = {};
+      editingCategoryId = null;
+      save();
+      renderTabs();
+      render();
+    });
+    tabsBarEl.appendChild(addTab);
+  }
+
+  function renderTab(list) {
+    var isActive = state.currentListId === list.id;
+    var isEditing = editingListId === list.id;
+
+    var tab = document.createElement("div");
+    tab.className = "tab" + (isActive ? " active" : "");
+
+    if (isEditing) {
+      var input = document.createElement("input");
+      input.className = "tab-edit-input";
+      input.type = "text";
+      input.maxLength = 40;
+      input.value = list.name;
+      input.setAttribute("enterkeyhint", "done");
+
+      var commit = function() {
+        var val = input.value.trim();
+        if (val) list.name = val;
+        editingListId = null;
+        save();
+        renderTabs();
+      };
+      input.addEventListener("keydown", function(e) {
+        e.stopPropagation();
+        if (e.isComposing) return;
+        if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); commit(); }
+        if (e.key === "Escape") { editingListId = null; renderTabs(); }
+      });
+      input.addEventListener("click", function(e) { e.stopPropagation(); });
+      input.addEventListener("blur", commit);
+      tab.appendChild(input);
+
+      var del = document.createElement("div");
+      del.className = "tab-del";
+      del.textContent = "×";
+      del.addEventListener("click", function(e) {
+        e.stopPropagation();
+        if (state.lists.length <= 1) {
+          alert("You need at least one list.");
+          return;
+        }
+        if (confirm('Delete "' + list.name + '" and everything in it?')) {
+          state.lists = state.lists.filter(function(l) { return l.id !== list.id; });
+          if (state.currentListId === list.id) {
+            state.currentListId = state.lists[0].id;
+          }
+          editingListId = null;
+          openCategoryIds = {};
+          editingCategoryId = null;
+          save();
+          renderTabs();
+          render();
+        }
+      });
+      tab.appendChild(del);
+
+      setTimeout(function() { input.focus(); input.select(); }, 0);
+    } else {
+      var label = document.createElement("span");
+      label.className = "tab-label";
+      label.textContent = list.name;
+      tab.appendChild(label);
+
+      tab.addEventListener("click", function() {
+        if (isActive) {
+          editingListId = list.id;
+          renderTabs();
+          return;
+        }
+        state.currentListId = list.id;
+        openCategoryIds = {};
+        editingCategoryId = null;
+        save();
+        renderTabs();
+        render();
+      });
+    }
+
+    return tab;
   }
 
   function renderCategory(cat) {
@@ -345,7 +527,8 @@
     meta.className = "cat-meta";
     meta.textContent = cat.items.length ? (completed + "/" + cat.items.length) : "";
 
-    var catIdx = state.categories.indexOf(cat);
+    var catList = getCurrentList().categories;
+    var catIdx = catList.indexOf(cat);
 
     var up = document.createElement("div");
     up.className = "cat-move" + (catIdx === 0 ? " disabled" : "");
@@ -353,22 +536,22 @@
     up.addEventListener("click", function(e) {
       e.stopPropagation();
       if (catIdx === 0) return;
-      var tmp = state.categories[catIdx - 1];
-      state.categories[catIdx - 1] = state.categories[catIdx];
-      state.categories[catIdx] = tmp;
+      var tmp = catList[catIdx - 1];
+      catList[catIdx - 1] = catList[catIdx];
+      catList[catIdx] = tmp;
       save();
       render();
     });
 
     var down = document.createElement("div");
-    down.className = "cat-move" + (catIdx === state.categories.length - 1 ? " disabled" : "");
+    down.className = "cat-move" + (catIdx === catList.length - 1 ? " disabled" : "");
     down.textContent = "▼";
     down.addEventListener("click", function(e) {
       e.stopPropagation();
-      if (catIdx === state.categories.length - 1) return;
-      var tmp = state.categories[catIdx + 1];
-      state.categories[catIdx + 1] = state.categories[catIdx];
-      state.categories[catIdx] = tmp;
+      if (catIdx === catList.length - 1) return;
+      var tmp = catList[catIdx + 1];
+      catList[catIdx + 1] = catList[catIdx];
+      catList[catIdx] = tmp;
       save();
       render();
     });
@@ -388,7 +571,8 @@
     del.addEventListener("click", function(e) {
       e.stopPropagation();
       if (confirm('Delete category "' + cat.name + '" and all its items?')) {
-        state.categories = state.categories.filter(function(c) { return c.id !== cat.id; });
+        var curList = getCurrentList();
+        curList.categories = curList.categories.filter(function(c) { return c.id !== cat.id; });
         delete openCategoryIds[cat.id];
         save();
         render();
@@ -627,7 +811,7 @@
         var cat = { id: uid(), name: val, items: [] };
         var newItem = { id: uid(), text: "", done: false, subtasks: [] };
         cat.items.push(newItem);
-        state.categories.push(cat);
+        getCurrentList().categories.push(cat);
         newCatInput.value = "";
         save();
         openCategoryIds[cat.id] = true;
@@ -647,20 +831,23 @@
   var BACKUP_META_KEY = "todo-backup-meta";
 
   function exportText() {
-    return state.categories.map(function(cat) {
-      var lines = [cat.name];
-      cat.items.forEach(function(item) {
-        lines.push("[" + (item.done ? "x" : " ") + "] " + item.text);
-        (item.subtasks || []).forEach(function(sub) {
-          lines.push("  [" + (sub.done ? "x" : " ") + "] " + sub.text);
+    return state.lists.map(function(list) {
+      var body = list.categories.map(function(cat) {
+        var lines = [cat.name];
+        cat.items.forEach(function(item) {
+          lines.push("[" + (item.done ? "x" : " ") + "] " + item.text);
+          (item.subtasks || []).forEach(function(sub) {
+            lines.push("  [" + (sub.done ? "x" : " ") + "] " + sub.text);
+          });
         });
-      });
-      return lines.join("\n");
+        return lines.join("\n");
+      }).join("\n\n");
+      return "## " + list.name + (body ? "\n\n" + body : "");
     }).join("\n\n");
   }
 
-  function parseBackupText(raw) {
-    var blocks = raw.replace(/\r\n/g, "\n").split(/\n\s*\n/);
+  function parseCategoriesFromText(text) {
+    var blocks = text.split(/\n\s*\n/);
     var result = [];
     blocks.forEach(function(block) {
       var lines = block.split("\n").filter(function(l) { return l.trim() !== ""; });
@@ -685,6 +872,41 @@
       result.push(cat);
     });
     return result;
+  }
+
+  function parseBackupText(raw) {
+    var normalized = raw.replace(/\r\n/g, "\n");
+    var lines = normalized.split("\n");
+    var headerRe = /^##\s+(.*)$/;
+    var hasHeaders = lines.some(function(l) { return headerRe.test(l.trim()); });
+
+    if (!hasHeaders) {
+      return [{ id: uid(), name: "Restored List", categories: parseCategoriesFromText(normalized) }];
+    }
+
+    var lists = [];
+    var currentName = null;
+    var currentLines = [];
+
+    function flush() {
+      if (currentName !== null) {
+        lists.push({ id: uid(), name: currentName, categories: parseCategoriesFromText(currentLines.join("\n")) });
+      }
+    }
+
+    lines.forEach(function(line) {
+      var m = line.trim().match(headerRe);
+      if (m) {
+        flush();
+        currentName = m[1].trim() || "List";
+        currentLines = [];
+      } else if (currentName !== null) {
+        currentLines.push(line);
+      }
+    });
+    flush();
+
+    return lists;
   }
 
   function loadBackupMeta() {
@@ -745,18 +967,27 @@
   restoreLoad.addEventListener("click", function() {
     var raw = restoreInput.value;
     if (!raw.trim()) return;
-    if (!confirm("This will replace your current list. Continue?")) return;
-    state.categories = parseBackupText(raw);
+    if (!confirm("This will replace all your lists. Continue?")) return;
+    var lists = parseBackupText(raw);
+    if (!lists.length) {
+      alert("Couldn't find anything to restore in that text.");
+      return;
+    }
+    state.lists = lists;
+    state.currentListId = lists[0].id;
     openCategoryIds = {};
     editingCategoryId = null;
+    editingListId = null;
     save();
     restoreInput.value = "";
     restorePanel.style.display = "none";
+    renderTabs();
     render();
   });
 
   updateBackupStatus();
 
+  renderTabs();
   render();
 
   if ("serviceWorker" in navigator) {
