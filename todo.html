@@ -47,16 +47,10 @@
     gap: 6px;
     padding: 7px 14px;
     border-radius: 16px;
-    background: #101010;
-    color: #666;
     font-size: 14px;
     cursor: pointer;
     white-space: nowrap;
     max-width: 160px;
-  }
-  .tab.active {
-    background: #1e1e1e;
-    color: #f2f2f2;
   }
   .tab-label {
     overflow: hidden;
@@ -64,6 +58,7 @@
     white-space: nowrap;
   }
   .tab-add {
+    background: #101010;
     color: #444;
     font-weight: 600;
     font-size: 17px;
@@ -312,7 +307,7 @@
     </div>
   </div>
 
-  <div id="version">v14</div>
+  <div id="version">v15</div>
 </div>
 
 <script>
@@ -397,12 +392,23 @@
     tabsBarEl.appendChild(addTab);
   }
 
+  function hueForList(list) {
+    var hash = 0;
+    for (var i = 0; i < list.id.length; i++) {
+      hash = (hash * 31 + list.id.charCodeAt(i)) % 360;
+    }
+    return hash;
+  }
+
   function renderTab(list) {
     var isActive = state.currentListId === list.id;
     var isEditing = editingListId === list.id;
+    var hue = hueForList(list);
 
     var tab = document.createElement("div");
     tab.className = "tab" + (isActive ? " active" : "");
+    tab.style.background = isActive ? "hsl(" + hue + ", 38%, 20%)" : "hsl(" + hue + ", 22%, 12%)";
+    tab.style.color = isActive ? "hsl(" + hue + ", 65%, 88%)" : "hsl(" + hue + ", 25%, 55%)";
 
     if (isEditing) {
       var input = document.createElement("input");
