@@ -243,38 +243,62 @@
   }
   .sub-item-row .item-text { color: #bbb; }
 
-  .log-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin: 2px 0 6px 24px;
+  .workout-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 4px 0 8px;
   }
-  .log-chip {
-    background: #1a1a1a;
-    color: #bbb;
-    font-size: 12px;
-    padding: 3px 9px;
-    border-radius: 10px;
-    cursor: pointer;
+  .workout-table {
+    border-collapse: collapse;
   }
-  .log-chip:hover { background: #232323; color: #eee; }
-  .log-chip-add {
-    color: #555;
-    font-weight: 600;
+  .workout-table th, .workout-table td {
+    border: 1px solid #1a1a1a;
+    padding: 0;
   }
-  .log-chip-add:hover { color: #999; background: #1a1a1a; }
-  .log-input {
-    background: #1a1a1a;
+  .wt-exercise, .wt-sets, .wt-week-header, .wt-subhead, .wt-addweek {
+    font-size: 11px;
+    color: #666;
+    font-weight: 500;
+    padding: 4px 6px;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .wt-subhead { color: #444; font-weight: 400; }
+  .wt-addweek { cursor: pointer; text-align: center; color: #555; }
+  .wt-addweek:hover { color: #999; }
+  .wt-week-header span { cursor: pointer; }
+  .wt-week-del { margin-left: 4px; color: #555; cursor: pointer; }
+  .wt-week-del:hover { color: #ccc; }
+  .wt-week-edit-input {
+    width: 70px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f2f2f2;
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .wt-input {
+    width: 55px;
+    background: transparent;
     border: none;
     outline: none;
     color: #ddd;
-    font-size: 12px;
-    padding: 3px 9px;
-    border-radius: 10px;
+    font-size: 13px;
     font-family: inherit;
-    width: 90px;
+    padding: 5px 6px;
+    text-align: left;
   }
+  .wt-exercise-input { width: 110px; }
+  .wt-sets-input { width: 40px; text-align: center; }
+  .wt-cell-input { width: 50px; text-align: center; }
+  .wt-row-del {
+    color: #888;
+    font-size: 16px;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  .wt-row-del:hover { color: #ddd; }
 
   /* add category */
   .add-cat {
@@ -349,7 +373,7 @@
     </div>
   </div>
 
-  <div id="version">v16</div>
+  <div id="version">v19</div>
 </div>
 
 <script>
@@ -403,11 +427,74 @@
       var categories = days.map(function(day) {
         return { id: uid(), name: day, items: [] };
       });
-      state.lists.push({ id: uid(), name: "Workouts", mode: "workout", categories: categories });
+      state.lists.push({ id: uid(), name: "Workouts", mode: "workout", weeks: [{ id: uid(), label: "Week 1" }], categories: categories });
       save();
     }
 
     try { window.localStorage.setItem(WORKOUT_SEED_KEY, "1"); } catch (e) {}
+  }
+
+  var WORKOUT_PLAN_V1_KEY = "todo-workout-plan-v1-seeded";
+
+  function ensureWorkoutPlanV1() {
+    var seeded = false;
+    try { seeded = window.localStorage.getItem(WORKOUT_PLAN_V1_KEY) === "1"; } catch (e) {}
+    if (seeded) return;
+
+    var plan = {
+      "Monday": {
+        label: "Monday — Deadlift Focus",
+        exercises: [
+          { text: "Deadlift", sets: "5" },
+          { text: "Lat Pulldown", sets: "3" },
+          { text: "Hip Thrust or Back Extension (weighted)", sets: "3" },
+          { text: "Hanging Leg Raise or Ab Wheel", sets: "3" }
+        ]
+      },
+      "Tuesday": {
+        label: "Tuesday — Upper A (Push)",
+        exercises: [
+          { text: "Dumbbell Bench Press", sets: "4" },
+          { text: "Overhead Press", sets: "4" },
+          { text: "Chest Fly (dumbbell or cable)", sets: "3" },
+          { text: "Face Pull", sets: "3" }
+        ]
+      },
+      "Thursday": {
+        label: "Thursday — Upper B (Pull)",
+        exercises: [
+          { text: "Lat Pulldown", sets: "3" },
+          { text: "Barbell Row", sets: "3" },
+          { text: "Push Press or Incline Bench", sets: "3" },
+          { text: "Curl or Weighted Core", sets: "3" }
+        ]
+      },
+      "Friday": {
+        label: "Friday — Legs/Athletic",
+        exercises: [
+          { text: "Bulgarian Split Squat (per side)", sets: "4" },
+          { text: "Single-Leg RDL (per side)", sets: "3" },
+          { text: "Side-Lying Hip Adduction (per side)", sets: "3" },
+          { text: "Core (anti-rotation)", sets: "3" }
+        ]
+      }
+    };
+
+    state.lists.forEach(function(list) {
+      if (list.mode !== "workout") return;
+      list.categories.forEach(function(cat) {
+        var plannedDay = plan[cat.name];
+        if (!plannedDay) return;
+        if (cat.items.length > 0) return;
+        cat.name = plannedDay.label;
+        cat.items = plannedDay.exercises.map(function(ex) {
+          return { id: uid(), text: ex.text, done: false, subtasks: [], sets: ex.sets, cells: {} };
+        });
+      });
+    });
+
+    save();
+    try { window.localStorage.setItem(WORKOUT_PLAN_V1_KEY, "1"); } catch (e) {}
   }
 
   function getCurrentList() {
@@ -419,7 +506,7 @@
   var openCategoryIds = {};
   var editingCategoryId = null;
   var editingListId = null;
-  var openLogInputs = {};
+  var editingWeekId = null;
 
   var categoriesEl = document.getElementById("categories");
   var newCatInput = document.getElementById("newCatInput");
@@ -500,10 +587,15 @@
 
       var modeToggle = document.createElement("div");
       modeToggle.className = "tab-mode-toggle" + (list.mode === "workout" ? " active" : "");
-      modeToggle.textContent = "log mode";
+      modeToggle.textContent = "grid mode";
       modeToggle.addEventListener("click", function(e) {
         e.stopPropagation();
-        list.mode = list.mode === "workout" ? undefined : "workout";
+        if (list.mode === "workout") {
+          list.mode = undefined;
+        } else {
+          list.mode = "workout";
+          list.weeks = list.weeks || [{ id: uid(), label: "Week 1" }];
+        }
         save();
         renderTabs();
         render();
@@ -690,9 +782,13 @@
     var dropdown = document.createElement("div");
     dropdown.className = "dropdown" + (openCategoryIds[cat.id] ? " open" : "");
 
-    cat.items.forEach(function(item) {
-      dropdown.appendChild(renderItem(cat.items, item));
-    });
+    if (getCurrentList().mode === "workout") {
+      dropdown.appendChild(renderWorkoutTable(cat));
+    } else {
+      cat.items.forEach(function(item) {
+        dropdown.appendChild(renderItem(cat.items, item));
+      });
+    }
 
     wrap.appendChild(dropdown);
 
@@ -716,7 +812,6 @@
 
   function renderItem(list, item) {
     item.subtasks = item.subtasks || [];
-    item.logs = item.logs || [];
 
     var wrap = document.createElement("div");
 
@@ -773,70 +868,6 @@
       wrap.appendChild(subWrap);
     }
 
-    if (getCurrentList().mode === "workout") {
-      wrap.appendChild(renderLogRow(item));
-    }
-
-    return wrap;
-  }
-
-  function renderLogRow(item) {
-    var wrap = document.createElement("div");
-    wrap.className = "log-row";
-
-    item.logs.forEach(function(log) {
-      var chip = document.createElement("span");
-      chip.className = "log-chip";
-      chip.textContent = log.value;
-      chip.addEventListener("click", function(e) {
-        e.stopPropagation();
-        if (confirm('Delete "' + log.value + '"?')) {
-          item.logs = item.logs.filter(function(l) { return l.id !== log.id; });
-          save();
-          render();
-        }
-      });
-      wrap.appendChild(chip);
-    });
-
-    if (openLogInputs[item.id]) {
-      var input = document.createElement("input");
-      input.type = "text";
-      input.className = "log-input";
-      input.placeholder = "e.g. 135x5";
-      input.maxLength = 30;
-      input.setAttribute("enterkeyhint", "done");
-
-      var commitLog = function() {
-        var val = input.value.trim();
-        if (val) item.logs.push({ id: uid(), value: val });
-        openLogInputs[item.id] = false;
-        save();
-        render();
-      };
-      input.addEventListener("keydown", function(e) {
-        e.stopPropagation();
-        if (e.isComposing) return;
-        if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); commitLog(); }
-        if (e.key === "Escape") { openLogInputs[item.id] = false; render(); }
-      });
-      input.addEventListener("click", function(e) { e.stopPropagation(); });
-      input.addEventListener("blur", commitLog);
-      wrap.appendChild(input);
-
-      setTimeout(function() { input.focus(); }, 0);
-    } else {
-      var addChip = document.createElement("span");
-      addChip.className = "log-chip log-chip-add";
-      addChip.textContent = "+";
-      addChip.addEventListener("click", function(e) {
-        e.stopPropagation();
-        openLogInputs[item.id] = true;
-        render();
-      });
-      wrap.appendChild(addChip);
-    }
-
     return wrap;
   }
 
@@ -864,6 +895,231 @@
     row.appendChild(text);
     row.appendChild(del);
     return row;
+  }
+
+  function renderWorkoutTable(cat) {
+    var workoutList = getCurrentList();
+    workoutList.weeks = workoutList.weeks || [{ id: uid(), label: "Week 1" }];
+
+    var wrapDiv = document.createElement("div");
+    wrapDiv.className = "workout-table-wrap";
+
+    var table = document.createElement("table");
+    table.className = "workout-table";
+
+    var thead = document.createElement("thead");
+    var headRow1 = document.createElement("tr");
+    var headRow2 = document.createElement("tr");
+
+    var thExercise = document.createElement("th");
+    thExercise.className = "wt-exercise";
+    thExercise.textContent = "Exercise";
+    headRow1.appendChild(thExercise);
+    headRow2.appendChild(document.createElement("th"));
+
+    var thSets = document.createElement("th");
+    thSets.className = "wt-sets";
+    thSets.textContent = "Sets";
+    headRow1.appendChild(thSets);
+    headRow2.appendChild(document.createElement("th"));
+
+    workoutList.weeks.forEach(function(week) {
+      var th = document.createElement("th");
+      th.className = "wt-week-header";
+      th.colSpan = 2;
+
+      if (editingWeekId === week.id) {
+        var wInput = document.createElement("input");
+        wInput.className = "wt-week-edit-input";
+        wInput.type = "text";
+        wInput.value = week.label;
+        wInput.maxLength = 20;
+        wInput.setAttribute("enterkeyhint", "done");
+
+        var commitWeek = function() {
+          var val = wInput.value.trim();
+          if (val) week.label = val;
+          editingWeekId = null;
+          save();
+          render();
+        };
+        wInput.addEventListener("keydown", function(e) {
+          e.stopPropagation();
+          if (e.isComposing) return;
+          if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); commitWeek(); }
+          if (e.key === "Escape") { editingWeekId = null; render(); }
+        });
+        wInput.addEventListener("click", function(e) { e.stopPropagation(); });
+        wInput.addEventListener("blur", commitWeek);
+        th.appendChild(wInput);
+
+        var wDel = document.createElement("span");
+        wDel.className = "wt-week-del";
+        wDel.textContent = "×";
+        wDel.addEventListener("click", function(e) {
+          e.stopPropagation();
+          if (confirm('Delete "' + week.label + '" and its data for every exercise?')) {
+            workoutList.weeks = workoutList.weeks.filter(function(w) { return w.id !== week.id; });
+            editingWeekId = null;
+            save();
+            render();
+          }
+        });
+        th.appendChild(wDel);
+        setTimeout(function() { wInput.focus(); wInput.select(); }, 0);
+      } else {
+        var label = document.createElement("span");
+        label.textContent = week.label;
+        label.addEventListener("click", function() {
+          editingWeekId = week.id;
+          render();
+        });
+        th.appendChild(label);
+      }
+
+      headRow1.appendChild(th);
+
+      var repsTh = document.createElement("th");
+      repsTh.className = "wt-subhead";
+      repsTh.textContent = "Reps";
+      var weightTh = document.createElement("th");
+      weightTh.className = "wt-subhead";
+      weightTh.textContent = "Weight";
+      headRow2.appendChild(repsTh);
+      headRow2.appendChild(weightTh);
+    });
+
+    var addWeekTh = document.createElement("th");
+    addWeekTh.className = "wt-addweek";
+    addWeekTh.textContent = "+";
+    addWeekTh.addEventListener("click", function() {
+      workoutList.weeks.push({ id: uid(), label: "Week " + (workoutList.weeks.length + 1) });
+      save();
+      render();
+    });
+    headRow1.appendChild(addWeekTh);
+    headRow2.appendChild(document.createElement("th"));
+
+    thead.appendChild(headRow1);
+    thead.appendChild(headRow2);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    cat.items.forEach(function(item) {
+      tbody.appendChild(renderWorkoutRow(cat.items, item, workoutList));
+    });
+    table.appendChild(tbody);
+
+    wrapDiv.appendChild(table);
+    return wrapDiv;
+  }
+
+  function renderWorkoutRow(list, item, workoutList) {
+    item.sets = item.sets || "";
+    item.cells = item.cells || {};
+
+    var tr = document.createElement("tr");
+
+    var nameTd = document.createElement("td");
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "wt-input wt-exercise-input";
+    nameInput.value = item.text;
+    nameInput.maxLength = 60;
+    nameInput.setAttribute("data-item-id", item.id);
+    nameInput.setAttribute("enterkeyhint", "done");
+    nameInput.addEventListener("input", function() {
+      item.text = nameInput.value;
+      save();
+    });
+    nameInput.addEventListener("keydown", function(e) {
+      e.stopPropagation();
+      if (e.isComposing) return;
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        var idx = list.indexOf(item);
+        var newItem = { id: uid(), text: "", done: false, subtasks: [], sets: "", cells: {} };
+        list.splice(idx + 1, 0, newItem);
+        save();
+        render();
+        focusItemText(newItem.id);
+        return;
+      }
+      if ((e.key === "Backspace" || e.keyCode === 8) && nameInput.value === "") {
+        var delIdx = list.indexOf(item);
+        if (delIdx > 0) {
+          e.preventDefault();
+          var prevItem = list[delIdx - 1];
+          list.splice(delIdx, 1);
+          save();
+          render();
+          focusItemText(prevItem.id, true);
+        }
+      }
+    });
+    nameInput.addEventListener("blur", function() {
+      if (nameInput.value.trim() === "") {
+        removeFromList(list, item);
+      }
+    });
+    nameTd.appendChild(nameInput);
+    tr.appendChild(nameTd);
+
+    var setsTd = document.createElement("td");
+    var setsInput = document.createElement("input");
+    setsInput.type = "text";
+    setsInput.className = "wt-input wt-sets-input";
+    setsInput.value = item.sets;
+    setsInput.maxLength = 10;
+    setsInput.addEventListener("input", function() {
+      item.sets = setsInput.value;
+      save();
+    });
+    setsTd.appendChild(setsInput);
+    tr.appendChild(setsTd);
+
+    workoutList.weeks.forEach(function(week) {
+      item.cells[week.id] = item.cells[week.id] || { reps: "", weight: "" };
+      var cell = item.cells[week.id];
+
+      var repsTd = document.createElement("td");
+      var repsInput = document.createElement("input");
+      repsInput.type = "text";
+      repsInput.className = "wt-input wt-cell-input";
+      repsInput.value = cell.reps;
+      repsInput.maxLength = 10;
+      repsInput.addEventListener("input", function() {
+        cell.reps = repsInput.value;
+        save();
+      });
+      repsTd.appendChild(repsInput);
+      tr.appendChild(repsTd);
+
+      var weightTd = document.createElement("td");
+      var weightInput = document.createElement("input");
+      weightInput.type = "text";
+      weightInput.className = "wt-input wt-cell-input";
+      weightInput.value = cell.weight;
+      weightInput.maxLength = 10;
+      weightInput.addEventListener("input", function() {
+        cell.weight = weightInput.value;
+        save();
+      });
+      weightTd.appendChild(weightInput);
+      tr.appendChild(weightTd);
+    });
+
+    var delTd = document.createElement("td");
+    var del = document.createElement("span");
+    del.className = "wt-row-del";
+    del.textContent = "×";
+    del.addEventListener("click", function() {
+      removeFromList(list, item);
+    });
+    delTd.appendChild(del);
+    tr.appendChild(delTd);
+
+    return tr;
   }
 
   function removeFromList(list, item) {
@@ -978,21 +1234,37 @@
 
   function exportText() {
     return state.lists.map(function(list) {
+      var isWorkout = list.mode === "workout";
+      var chunks = ["## " + list.name + (isWorkout ? " [workout]" : "")];
+
+      if (isWorkout) {
+        var weeks = list.weeks || [];
+        chunks.push("Weeks: " + weeks.map(function(w) { return w.label; }).join(", "));
+      }
+
       var body = list.categories.map(function(cat) {
         var lines = [cat.name];
         cat.items.forEach(function(item) {
-          lines.push("[" + (item.done ? "x" : " ") + "] " + item.text);
-          (item.subtasks || []).forEach(function(sub) {
-            lines.push("  [" + (sub.done ? "x" : " ") + "] " + sub.text);
-          });
-          (item.logs || []).forEach(function(log) {
-            lines.push("  = " + log.value);
-          });
+          if (isWorkout) {
+            var parts = [item.text, "Sets: " + (item.sets || "")];
+            (list.weeks || []).forEach(function(week) {
+              var cell = (item.cells && item.cells[week.id]) || { reps: "", weight: "" };
+              parts.push(week.label + " reps: " + cell.reps);
+              parts.push(week.label + " weight: " + cell.weight);
+            });
+            lines.push(parts.join(" | "));
+          } else {
+            lines.push("[" + (item.done ? "x" : " ") + "] " + item.text);
+            (item.subtasks || []).forEach(function(sub) {
+              lines.push("  [" + (sub.done ? "x" : " ") + "] " + sub.text);
+            });
+          }
         });
         return lines.join("\n");
       }).join("\n\n");
-      var header = "## " + list.name + (list.mode === "workout" ? " [workout]" : "");
-      return header + (body ? "\n\n" + body : "");
+
+      if (body) chunks.push(body);
+      return chunks.join("\n\n");
     }).join("\n\n");
   }
 
@@ -1007,13 +1279,7 @@
       var cat = { id: uid(), name: nameLine.trim(), items: [] };
       var currentItem = null;
       for (var i = 1; i < lines.length; i++) {
-        var line = lines[i];
-        var logMatch = line.match(/^(\s*)=\s?(.*)$/);
-        if (logMatch && currentItem) {
-          currentItem.logs.push({ id: uid(), value: logMatch[2] });
-          continue;
-        }
-        var m = line.match(/^(\s*)\[([ xX])\]\s?(.*)$/);
+        var m = lines[i].match(/^(\s*)\[([ xX])\]\s?(.*)$/);
         if (!m) continue;
         var indent = m[1].length;
         var done = m[2].toLowerCase() === "x";
@@ -1021,9 +1287,45 @@
         if (indent >= 2 && currentItem) {
           currentItem.subtasks.push({ id: uid(), text: text, done: done });
         } else {
-          currentItem = { id: uid(), text: text, done: done, subtasks: [], logs: [] };
+          currentItem = { id: uid(), text: text, done: done, subtasks: [] };
           cat.items.push(currentItem);
         }
+      }
+      result.push(cat);
+    });
+    return result;
+  }
+
+  function parseWorkoutCategoriesFromText(text, weekLabelToId) {
+    var blocks = text.split(/\n\s*\n/);
+    var result = [];
+    blocks.forEach(function(block) {
+      var lines = block.split("\n").filter(function(l) { return l.trim() !== ""; });
+      if (!lines.length) return;
+      var cat = { id: uid(), name: lines[0].trim(), items: [] };
+      for (var i = 1; i < lines.length; i++) {
+        var segments = lines[i].split(/\s*\|\s*/).map(function(s) { return s.trim(); }).filter(function(s) { return s !== ""; });
+        if (!segments.length) continue;
+        var item = { id: uid(), text: segments[0], done: false, subtasks: [], sets: "", cells: {} };
+        for (var j = 1; j < segments.length; j++) {
+          var seg = segments[j];
+          var setsMatch = seg.match(/^Sets:\s*(.*)$/i);
+          if (setsMatch) { item.sets = setsMatch[1]; continue; }
+          var cellMatch = seg.match(/^(.*)\s+(reps|weight):\s*(.*)$/i);
+          if (cellMatch) {
+            var weekLabel = cellMatch[1].trim();
+            var field = cellMatch[2].toLowerCase();
+            var value = cellMatch[3];
+            var weekId = weekLabelToId[weekLabel];
+            if (!weekId) {
+              weekId = uid();
+              weekLabelToId[weekLabel] = weekId;
+            }
+            item.cells[weekId] = item.cells[weekId] || { reps: "", weight: "" };
+            item.cells[weekId][field] = value;
+          }
+        }
+        cat.items.push(item);
       }
       result.push(cat);
     });
@@ -1046,8 +1348,31 @@
     var currentLines = [];
 
     function flush() {
-      if (currentName !== null) {
-        lists.push({ id: uid(), name: currentName, mode: currentMode, categories: parseCategoriesFromText(currentLines.join("\n")) });
+      if (currentName === null) return;
+
+      if (currentMode === "workout") {
+        var bodyLines = currentLines.slice();
+        var firstNonEmptyIdx = -1;
+        for (var k = 0; k < bodyLines.length; k++) {
+          if (bodyLines[k].trim() !== "") { firstNonEmptyIdx = k; break; }
+        }
+        var weekLabelToId = {};
+        var weeksList = [];
+        if (firstNonEmptyIdx !== -1) {
+          var weeksMatch = bodyLines[firstNonEmptyIdx].trim().match(/^Weeks:\s*(.*)$/i);
+          if (weeksMatch) {
+            weeksMatch[1].split(",").map(function(s) { return s.trim(); }).filter(Boolean).forEach(function(label) {
+              var id = uid();
+              weekLabelToId[label] = id;
+              weeksList.push({ id: id, label: label });
+            });
+            bodyLines.splice(firstNonEmptyIdx, 1);
+          }
+        }
+        var categories = parseWorkoutCategoriesFromText(bodyLines.join("\n"), weekLabelToId);
+        lists.push({ id: uid(), name: currentName, mode: "workout", weeks: weeksList, categories: categories });
+      } else {
+        lists.push({ id: uid(), name: currentName, categories: parseCategoriesFromText(currentLines.join("\n")) });
       }
     }
 
@@ -1153,6 +1478,7 @@
   updateBackupStatus();
 
   ensureWorkoutTab();
+  ensureWorkoutPlanV1();
   renderTabs();
   render();
 
