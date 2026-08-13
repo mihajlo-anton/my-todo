@@ -74,6 +74,15 @@
     font-family: inherit;
     width: 90px;
   }
+  .tab-mode-toggle {
+    font-size: 11px;
+    color: #666;
+    padding: 3px 7px;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #000;
+  }
+  .tab-mode-toggle.active { color: #8fd18f; }
   .tab-del {
     color: #777;
     font-size: 15px;
@@ -234,6 +243,39 @@
   }
   .sub-item-row .item-text { color: #bbb; }
 
+  .log-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 6px 24px;
+  }
+  .log-chip {
+    background: #1a1a1a;
+    color: #bbb;
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .log-chip:hover { background: #232323; color: #eee; }
+  .log-chip-add {
+    color: #555;
+    font-weight: 600;
+  }
+  .log-chip-add:hover { color: #999; background: #1a1a1a; }
+  .log-input {
+    background: #1a1a1a;
+    border: none;
+    outline: none;
+    color: #ddd;
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-family: inherit;
+    width: 90px;
+  }
+
   /* add category */
   .add-cat {
     margin-top: 8px;
@@ -307,7 +349,7 @@
     </div>
   </div>
 
-  <div id="version">v15</div>
+  <div id="version">v16</div>
 </div>
 
 <script>
@@ -348,6 +390,26 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
+  var WORKOUT_SEED_KEY = "todo-workout-seeded";
+
+  function ensureWorkoutTab() {
+    var seeded = false;
+    try { seeded = window.localStorage.getItem(WORKOUT_SEED_KEY) === "1"; } catch (e) {}
+    if (seeded) return;
+
+    var hasWorkoutList = state.lists.some(function(l) { return l.mode === "workout"; });
+    if (!hasWorkoutList) {
+      var days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      var categories = days.map(function(day) {
+        return { id: uid(), name: day, items: [] };
+      });
+      state.lists.push({ id: uid(), name: "Workouts", mode: "workout", categories: categories });
+      save();
+    }
+
+    try { window.localStorage.setItem(WORKOUT_SEED_KEY, "1"); } catch (e) {}
+  }
+
   function getCurrentList() {
     var found = null;
     state.lists.forEach(function(l) { if (l.id === state.currentListId) found = l; });
@@ -357,6 +419,7 @@
   var openCategoryIds = {};
   var editingCategoryId = null;
   var editingListId = null;
+  var openLogInputs = {};
 
   var categoriesEl = document.getElementById("categories");
   var newCatInput = document.getElementById("newCatInput");
@@ -434,6 +497,18 @@
       input.addEventListener("click", function(e) { e.stopPropagation(); });
       input.addEventListener("blur", commit);
       tab.appendChild(input);
+
+      var modeToggle = document.createElement("div");
+      modeToggle.className = "tab-mode-toggle" + (list.mode === "workout" ? " active" : "");
+      modeToggle.textContent = "log mode";
+      modeToggle.addEventListener("click", function(e) {
+        e.stopPropagation();
+        list.mode = list.mode === "workout" ? undefined : "workout";
+        save();
+        renderTabs();
+        render();
+      });
+      tab.appendChild(modeToggle);
 
       var del = document.createElement("div");
       del.className = "tab-del";
@@ -641,6 +716,7 @@
 
   function renderItem(list, item) {
     item.subtasks = item.subtasks || [];
+    item.logs = item.logs || [];
 
     var wrap = document.createElement("div");
 
@@ -695,6 +771,70 @@
       });
 
       wrap.appendChild(subWrap);
+    }
+
+    if (getCurrentList().mode === "workout") {
+      wrap.appendChild(renderLogRow(item));
+    }
+
+    return wrap;
+  }
+
+  function renderLogRow(item) {
+    var wrap = document.createElement("div");
+    wrap.className = "log-row";
+
+    item.logs.forEach(function(log) {
+      var chip = document.createElement("span");
+      chip.className = "log-chip";
+      chip.textContent = log.value;
+      chip.addEventListener("click", function(e) {
+        e.stopPropagation();
+        if (confirm('Delete "' + log.value + '"?')) {
+          item.logs = item.logs.filter(function(l) { return l.id !== log.id; });
+          save();
+          render();
+        }
+      });
+      wrap.appendChild(chip);
+    });
+
+    if (openLogInputs[item.id]) {
+      var input = document.createElement("input");
+      input.type = "text";
+      input.className = "log-input";
+      input.placeholder = "e.g. 135x5";
+      input.maxLength = 30;
+      input.setAttribute("enterkeyhint", "done");
+
+      var commitLog = function() {
+        var val = input.value.trim();
+        if (val) item.logs.push({ id: uid(), value: val });
+        openLogInputs[item.id] = false;
+        save();
+        render();
+      };
+      input.addEventListener("keydown", function(e) {
+        e.stopPropagation();
+        if (e.isComposing) return;
+        if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); commitLog(); }
+        if (e.key === "Escape") { openLogInputs[item.id] = false; render(); }
+      });
+      input.addEventListener("click", function(e) { e.stopPropagation(); });
+      input.addEventListener("blur", commitLog);
+      wrap.appendChild(input);
+
+      setTimeout(function() { input.focus(); }, 0);
+    } else {
+      var addChip = document.createElement("span");
+      addChip.className = "log-chip log-chip-add";
+      addChip.textContent = "+";
+      addChip.addEventListener("click", function(e) {
+        e.stopPropagation();
+        openLogInputs[item.id] = true;
+        render();
+      });
+      wrap.appendChild(addChip);
     }
 
     return wrap;
@@ -845,10 +985,14 @@
           (item.subtasks || []).forEach(function(sub) {
             lines.push("  [" + (sub.done ? "x" : " ") + "] " + sub.text);
           });
+          (item.logs || []).forEach(function(log) {
+            lines.push("  = " + log.value);
+          });
         });
         return lines.join("\n");
       }).join("\n\n");
-      return "## " + list.name + (body ? "\n\n" + body : "");
+      var header = "## " + list.name + (list.mode === "workout" ? " [workout]" : "");
+      return header + (body ? "\n\n" + body : "");
     }).join("\n\n");
   }
 
@@ -863,7 +1007,13 @@
       var cat = { id: uid(), name: nameLine.trim(), items: [] };
       var currentItem = null;
       for (var i = 1; i < lines.length; i++) {
-        var m = lines[i].match(/^(\s*)\[([ xX])\]\s?(.*)$/);
+        var line = lines[i];
+        var logMatch = line.match(/^(\s*)=\s?(.*)$/);
+        if (logMatch && currentItem) {
+          currentItem.logs.push({ id: uid(), value: logMatch[2] });
+          continue;
+        }
+        var m = line.match(/^(\s*)\[([ xX])\]\s?(.*)$/);
         if (!m) continue;
         var indent = m[1].length;
         var done = m[2].toLowerCase() === "x";
@@ -871,7 +1021,7 @@
         if (indent >= 2 && currentItem) {
           currentItem.subtasks.push({ id: uid(), text: text, done: done });
         } else {
-          currentItem = { id: uid(), text: text, done: done, subtasks: [] };
+          currentItem = { id: uid(), text: text, done: done, subtasks: [], logs: [] };
           cat.items.push(currentItem);
         }
       }
@@ -892,11 +1042,12 @@
 
     var lists = [];
     var currentName = null;
+    var currentMode;
     var currentLines = [];
 
     function flush() {
       if (currentName !== null) {
-        lists.push({ id: uid(), name: currentName, categories: parseCategoriesFromText(currentLines.join("\n")) });
+        lists.push({ id: uid(), name: currentName, mode: currentMode, categories: parseCategoriesFromText(currentLines.join("\n")) });
       }
     }
 
@@ -904,7 +1055,15 @@
       var m = line.trim().match(headerRe);
       if (m) {
         flush();
-        currentName = m[1].trim() || "List";
+        var raw2 = m[1].trim();
+        var modeMatch = raw2.match(/^(.*?)\s*\[workout\]$/);
+        if (modeMatch) {
+          currentName = modeMatch[1].trim() || "List";
+          currentMode = "workout";
+        } else {
+          currentName = raw2 || "List";
+          currentMode = undefined;
+        }
         currentLines = [];
       } else if (currentName !== null) {
         currentLines.push(line);
@@ -993,6 +1152,7 @@
 
   updateBackupStatus();
 
+  ensureWorkoutTab();
   renderTabs();
   render();
 

@@ -1,4 +1,4 @@
-var CACHE = "todo-cache-v15";
+var CACHE = "todo-cache-v16";
 var ASSETS = ["./todo.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", function(e) {
