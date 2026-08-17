@@ -83,6 +83,15 @@
     background: #000;
   }
   .tab-mode-toggle.active { color: #8fd18f; }
+  .tab-move {
+    font-size: 13px;
+    color: #777;
+    padding: 3px 5px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tab-move:hover { color: #ccc; }
+  .tab-move.disabled { color: #333; cursor: default; }
   .tab-del {
     color: #777;
     font-size: 15px;
@@ -373,7 +382,7 @@
     </div>
   </div>
 
-  <div id="version">v19</div>
+  <div id="version">v20</div>
 </div>
 
 <script>
@@ -584,6 +593,36 @@
       input.addEventListener("click", function(e) { e.stopPropagation(); });
       input.addEventListener("blur", commit);
       tab.appendChild(input);
+
+      var listIdx = state.lists.indexOf(list);
+
+      var moveLeft = document.createElement("div");
+      moveLeft.className = "tab-move" + (listIdx === 0 ? " disabled" : "");
+      moveLeft.textContent = "◀";
+      moveLeft.addEventListener("click", function(e) {
+        e.stopPropagation();
+        if (listIdx === 0) return;
+        var tmp = state.lists[listIdx - 1];
+        state.lists[listIdx - 1] = state.lists[listIdx];
+        state.lists[listIdx] = tmp;
+        save();
+        renderTabs();
+      });
+      tab.appendChild(moveLeft);
+
+      var moveRight = document.createElement("div");
+      moveRight.className = "tab-move" + (listIdx === state.lists.length - 1 ? " disabled" : "");
+      moveRight.textContent = "▶";
+      moveRight.addEventListener("click", function(e) {
+        e.stopPropagation();
+        if (listIdx === state.lists.length - 1) return;
+        var tmp = state.lists[listIdx + 1];
+        state.lists[listIdx + 1] = state.lists[listIdx];
+        state.lists[listIdx] = tmp;
+        save();
+        renderTabs();
+      });
+      tab.appendChild(moveRight);
 
       var modeToggle = document.createElement("div");
       modeToggle.className = "tab-mode-toggle" + (list.mode === "workout" ? " active" : "");
