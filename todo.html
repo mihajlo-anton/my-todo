@@ -52,6 +52,9 @@
     white-space: nowrap;
     max-width: 160px;
   }
+  .tab.editing {
+    max-width: none;
+  }
   .tab-label {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -72,7 +75,7 @@
     color: #f2f2f2;
     font-size: 14px;
     font-family: inherit;
-    width: 90px;
+    width: 64px;
   }
   .tab-mode-toggle {
     font-size: 11px;
@@ -382,7 +385,7 @@
     </div>
   </div>
 
-  <div id="version">v20</div>
+  <div id="version">v21</div>
 </div>
 
 <script>
@@ -565,7 +568,7 @@
     var hue = hueForList(list);
 
     var tab = document.createElement("div");
-    tab.className = "tab" + (isActive ? " active" : "");
+    tab.className = "tab" + (isActive ? " active" : "") + (isEditing ? " editing" : "");
     tab.style.background = isActive ? "hsl(" + hue + ", 38%, 20%)" : "hsl(" + hue + ", 22%, 12%)";
     tab.style.color = isActive ? "hsl(" + hue + ", 65%, 88%)" : "hsl(" + hue + ", 25%, 55%)";
 
