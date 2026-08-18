@@ -385,7 +385,7 @@
     </div>
   </div>
 
-  <div id="version">v21</div>
+  <div id="version">v22</div>
 </div>
 
 <script>
@@ -602,6 +602,7 @@
       var moveLeft = document.createElement("div");
       moveLeft.className = "tab-move" + (listIdx === 0 ? " disabled" : "");
       moveLeft.textContent = "◀";
+      moveLeft.addEventListener("mousedown", function(e) { e.preventDefault(); });
       moveLeft.addEventListener("click", function(e) {
         e.stopPropagation();
         if (listIdx === 0) return;
@@ -616,6 +617,7 @@
       var moveRight = document.createElement("div");
       moveRight.className = "tab-move" + (listIdx === state.lists.length - 1 ? " disabled" : "");
       moveRight.textContent = "▶";
+      moveRight.addEventListener("mousedown", function(e) { e.preventDefault(); });
       moveRight.addEventListener("click", function(e) {
         e.stopPropagation();
         if (listIdx === state.lists.length - 1) return;
@@ -630,6 +632,7 @@
       var modeToggle = document.createElement("div");
       modeToggle.className = "tab-mode-toggle" + (list.mode === "workout" ? " active" : "");
       modeToggle.textContent = "grid mode";
+      modeToggle.addEventListener("mousedown", function(e) { e.preventDefault(); });
       modeToggle.addEventListener("click", function(e) {
         e.stopPropagation();
         if (list.mode === "workout") {
@@ -647,6 +650,7 @@
       var del = document.createElement("div");
       del.className = "tab-del";
       del.textContent = "×";
+      del.addEventListener("mousedown", function(e) { e.preventDefault(); });
       del.addEventListener("click", function(e) {
         e.stopPropagation();
         if (state.lists.length <= 1) {
